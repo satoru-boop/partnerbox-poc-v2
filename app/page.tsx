@@ -102,12 +102,7 @@ const INDUSTRIES = ['SaaS', 'D2C', 'Marketplace', 'Fintech', 'Other']
 const PHASES = ['Pre', 'Seed', 'Series A']
 
 // ✅ Next.js 16 の Page 型に合わせた宣言
-export default function Page(
-  _props: {
-    params: Record<string, string>
-    searchParams?: Record<string, string | string[]>
-  }
-): JSX.Element {
+export default function Page(_props: any): JSX.Element {
   const [role, setRole] = useState<Role>('founder')
   const [draft, setDraft] = useState<Startup>({
     id: 'TMP',
