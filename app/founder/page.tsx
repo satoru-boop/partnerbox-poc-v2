@@ -1,26 +1,17 @@
 'use client'
-import Link from 'next/link'
 
-export default function Page() {
-  const Card = ({
-    href, title, desc,
-  }: { href: string; title: string; desc: string }) => (
-    <Link
-      href={href}
-      className="block rounded-xl border p-6 hover:shadow transition"
-    >
-      <div className="text-lg font-semibold">{title}</div>
-      <div className="text-sm opacity-70 mt-1">{desc}</div>
-    </Link>
-  )
+import React from 'react'
 
+export default function FounderPage() {
   return (
-    <main className="max-w-3xl mx-auto p-6 space-y-6">
-      <h1 className="text-2xl font-bold">Partner Box — 役割を選択</h1>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card href="/founder" title="起業家" desc="PL/KPI 入力とAI解析（PoC）" />
-        <Card href="/investor" title="投資家" desc="案件リストと詳細確認" />
-        <Card href="/ops" title="運営" desc="運営向けメニュー（仮）" />
+    <main style={{ maxWidth: 980, margin: '40px auto', padding: '0 16px' }}>
+      <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 16 }}>起業家用フォーム</h1>
+      <p style={{ color: '#6b7280', marginBottom: 12 }}>
+        ここに、以前トップページ（app/page.tsx）にあった PL / KPI 入力フォームを配置します。
+      </p>
+
+      <div style={{ padding: 16, border: '1px dashed #cbd5e1', borderRadius: 10, background: '#f8fafc' }}>
+        （一時プレースホルダ）フォームをこの枠の代わりに貼り付けてください
       </div>
     </main>
   )
