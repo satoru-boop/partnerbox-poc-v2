@@ -154,12 +154,14 @@ export default function FounderForm() {
     try { setAnalysis(analyzeLikeOldUI(draft)); } finally { setLoading(false); }
   };
 
+  // ✅ ここを DB 保存に対応
   const onSubmit = async () => {
     if (!analysis) { alert('先に「AI解析する」を実行してください'); return; }
     if (!draft.title.trim()) { alert('案件名を入力してください'); return; }
     setSubmitting(true);
     try {
-      const payload = {
+      // ローカル保存向けのメタ情報（従来どおり保持）
+      const payloadForLocal = {
         meta: { createdAt: new Date().toISOString() },
         form: {
           ...draft,
@@ -173,14 +175,33 @@ export default function FounderForm() {
         },
         analysis,
       };
-      const r = await fetch('/api/submit', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const data = await r.json();
-      const id: string = data.id;
 
+      // 🔽 DB（founder_pl）に保存するためのフラット化（APIの期待形）
+      const payloadForDb = {
+        title: draft.title,
+        summary: draft.summary,
+        industry: draft.industry,
+        phase: draft.phase,
+        revenue: toNum(draft.pl.revenue),
+        cogs: toNum(draft.pl.cogs),
+        ad_cost: toNum(draft.pl.adCost),
+        fixed_cost: toNum(draft.pl.fixedCost),
+        cv: toNum(draft.pl.cv),
+        price: toNum(draft.pl.price),
+        cvr: toNum(draft.pl.cvr),
+        cpa: toNum(draft.pl.cpa),
+        ltv: toNum(draft.pl.ltv),
+        churn: toNum(draft.pl.churn),
+        ai_score: analysis.aiScore,
+      };
+
+      // ✅ Supabase へ保存
+      const id = await saveToSupabase(payloadForDb);
+
+      // 従来のローカル保存も更新（投資家画面のPoC参照用）
       const raw = localStorage.getItem(LS_SUBMIT);
       const arr = raw ? JSON.parse(raw) : [];
-      arr.unshift({ id, ...payload });
+      arr.unshift({ id, ...payloadForLocal });
       localStorage.setItem(LS_SUBMIT, JSON.stringify(arr));
 
       setSubmittedId(id);
@@ -276,7 +297,7 @@ export default function FounderForm() {
                       analysis.subs.finance,
                       analysis.subs.viability,
                       analysis.subs.gtm,
-                      100 - analysis.subs.risk + 0, // 安全度表示に寄せる
+                      100 - analysis.subs.risk + 0,
                     ]}
                     labels={['Finance','Viability','GTM','Risk↓']}
                   />
@@ -435,6 +456,7 @@ function Radar({ values, labels }: { values: number[]; labels: string[] }) {
   );
 }
 
+/* ========= DB 保存呼び出し ========= */
 async function saveToSupabase(payload: any) {
   try {
     const res = await fetch('/api/founder_pl', {
@@ -444,9 +466,9 @@ async function saveToSupabase(payload: any) {
     })
     const json = await res.json()
     if (!res.ok) throw new Error(json.error || 'failed to save')
-    alert(`登録しました！（ID: ${json.id}）`)
+    return json.id as string;
   } catch (err: any) {
     console.error(err)
-    alert(`保存に失敗しました: ${err.message}`)
+    throw err;
   }
 }
