@@ -12,6 +12,9 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   const parsed = paramsSchema.safeParse(params);
+   export async function GET(_req: Request, ctx: any) {
++   const params = ctx?.params ?? {};
++   const parsed = paramsSchema.safeParse(params);
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
   }
