@@ -1,8 +1,10 @@
-// app/lib/supabaseAdmin.ts
-import { createClient } from '@supabase/supabase-js'
+// lib/supabaseAdmin.ts
+import { createClient } from '@supabase/supabase-js';
 
-export const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!, // ← Vercelに入れたservice_role
-  { auth: { persistSession: false } }
-)
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+// server-side only
+export const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
