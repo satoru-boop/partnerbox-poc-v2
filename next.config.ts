@@ -1,16 +1,13 @@
 // next.config.ts
 import type { NextConfig } from 'next';
-import path from 'path';
 
 const nextConfig: NextConfig = {
-  webpack: (config) => {
-    config.resolve = config.resolve || {};
-    config.resolve.alias = {
-    ...(config.resolve.alias || {}),
-      '@': path.resolve(__dirname), // ルート直下を '@' に割当て
-    };
-    return config;
+  experimental: {
+    // SWC 変換を強制（古い生成物を避けるための保険）
+    forceSwcTransforms: true,
   },
+  // 毎回一意の Build ID を生成して、Vercel 側のルートキャッシュを確実に無効化
+  generateBuildId: async () => String(Date.now()),
 };
 
 export default nextConfig;
