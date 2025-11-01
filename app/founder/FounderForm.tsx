@@ -26,7 +26,7 @@ type Draft = {
   summary: string;
   industry: string;
   phase: string;
-  pl: PLText; // ← 表示用は文字列で管理
+  pl: PLText; // 表示用は文字列で管理
 };
 
 type AnalyzeResult = {
@@ -36,16 +36,8 @@ type AnalyzeResult = {
 };
 
 const NUM_KEYS: (keyof PLText)[] = [
-  'revenue',
-  'cogs',
-  'fixedCost',
-  'adCost',
-  'cv',
-  'cvr',
-  'price',
-  'cpa',
-  'ltv',
-  'churn',
+  'revenue', 'cogs', 'fixedCost', 'adCost', 'cv',
+  'cvr', 'price', 'cpa', 'ltv', 'churn',
 ];
 
 const INDUSTRIES = ['SaaS', 'E-commerce', 'Marketplace', 'Media', 'Other'] as const;
@@ -57,9 +49,9 @@ const LS_KEY = 'pb_founder_draft_v2';
    ユーティリティ
    ========================= */
 
-// 数値入力のクリーニング：空文字許容、先頭ゼロ除去（0. は許容）、小数点は1つ
+// 数値文字列をクリーンに（空文字許容、カンマ除去、ドットは1つ、先頭ゼロ除去。ただし "0." は許容）
 function cleanNumericInput(v: string) {
-  let s = v.replace(/[^\d.]/g, '');
+  let s = v.replace(/,/g, '').replace(/[^\d.]/g, '');
   const parts = s.split('.');
   if (parts.length > 2) s = parts[0] + '.' + parts.slice(1).join('');
   if (s !== '' && s !== '0' && !s.startsWith('0.')) {
@@ -68,7 +60,19 @@ function cleanNumericInput(v: string) {
   return s;
 }
 
-const toNum = (s: string) => (s.trim() === '' ? 0 : parseFloat(s));
+const toNum = (s: string) => {
+  const x = cleanNumericInput(s).trim();
+  return x === '' ? 0 : parseFloat(x);
+};
+
+// "12345.67" → "12,345.67"
+function formatWithCommas(raw: string) {
+  const s = cleanNumericInput(raw);
+  if (s === '') return '';
+  const [intPart, decPart] = s.split('.');
+  const intFmt = Number(intPart).toLocaleString();
+  return decPart !== undefined ? `${intFmt}.${decPart}` : intFmt;
+}
 
 /* =========================
    本体コンポーネント
@@ -82,16 +86,8 @@ export default function FounderForm() {
       industry: INDUSTRIES[0],
       phase: PHASES[0],
       pl: {
-        revenue: '',
-        cogs: '',
-        fixedCost: '',
-        adCost: '',
-        cv: '',
-        cvr: '',
-        price: '',
-        cpa: '',
-        ltv: '',
-        churn: '',
+        revenue: '', cogs: '', fixedCost: '', adCost: '', cv: '',
+        cvr: '', price: '', cpa: '', ltv: '', churn: '',
       },
     }),
     []
@@ -137,10 +133,7 @@ export default function FounderForm() {
     } catch {}
   };
 
-  /* ========== 解析 ==========
-     ここでは /api/analyze に POST する例。
-     ない場合は擬似結果を返すよう fallback します。
-  ================================= */
+  /* ========== 解析（/api/analyze） ========== */
 
   const onAnalyze = async () => {
     setLoading(true);
@@ -160,7 +153,6 @@ export default function FounderForm() {
         churn: toNum(draft.pl.churn),
       };
 
-      // API がない環境でも落ちないように try → catch でフォールバック
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -239,9 +231,7 @@ export default function FounderForm() {
                 onChange={setField('industry')}
               >
                 {INDUSTRIES.map(v => (
-                  <option key={v} value={v}>
-                    {v}
-                  </option>
+                  <option key={v} value={v}>{v}</option>
                 ))}
               </select>
             </div>
@@ -253,9 +243,7 @@ export default function FounderForm() {
                 onChange={setField('phase')}
               >
                 {PHASES.map(v => (
-                  <option key={v} value={v}>
-                    {v}
-                  </option>
+                  <option key={v} value={v}>{v}</option>
                 ))}
               </select>
             </div>
@@ -264,17 +252,16 @@ export default function FounderForm() {
           <h2 className="mb-3 mt-6 text-lg font-semibold">PL・KPI（簡易）</h2>
 
           <div className="grid grid-cols-2 gap-3">
-            {/* 数字は type=text + inputMode=decimal */}
-            <NumberInput label="売上"        value={draft.pl.revenue}   onChange={setPL('revenue')} />
-            <NumberInput label="売上原価"    value={draft.pl.cogs}      onChange={setPL('cogs')} />
-            <NumberInput label="固定費"      value={draft.pl.fixedCost} onChange={setPL('fixedCost')} />
-            <NumberInput label="広告費"      value={draft.pl.adCost}    onChange={setPL('adCost')} />
-            <NumberInput label="CV数"        value={draft.pl.cv}        onChange={setPL('cv')} />
-            <NumberInput label="CVR(%)"      value={draft.pl.cvr}       onChange={setPL('cvr')} />
-            <NumberInput label="平均単価"     value={draft.pl.price}     onChange={setPL('price')} />
-            <NumberInput label="CPA"         value={draft.pl.cpa}       onChange={setPL('cpa')} />
-            <NumberInput label="LTV"         value={draft.pl.ltv}       onChange={setPL('ltv')} />
-            <NumberInput label="解約率/月(%)" value={draft.pl.churn}    onChange={setPL('churn')} />
+            <NumberInput label="売上"         value={draft.pl.revenue}   onChange={setPL('revenue')} />
+            <NumberInput label="売上原価"     value={draft.pl.cogs}      onChange={setPL('cogs')} />
+            <NumberInput label="固定費"       value={draft.pl.fixedCost} onChange={setPL('fixedCost')} />
+            <NumberInput label="広告費"       value={draft.pl.adCost}    onChange={setPL('adCost')} />
+            <NumberInput label="CV数"         value={draft.pl.cv}        onChange={setPL('cv')} />
+            <NumberInput label="CVR(%)"       value={draft.pl.cvr}       onChange={setPL('cvr')} />
+            <NumberInput label="平均単価"      value={draft.pl.price}     onChange={setPL('price')} />
+            <NumberInput label="CPA"          value={draft.pl.cpa}       onChange={setPL('cpa')} />
+            <NumberInput label="LTV"          value={draft.pl.ltv}       onChange={setPL('ltv')} />
+            <NumberInput label="解約率/月(%)"  value={draft.pl.churn}     onChange={setPL('churn')} />
           </div>
 
           <div className="mt-6 flex gap-3">
@@ -353,6 +340,8 @@ export default function FounderForm() {
 
 /* =========================
    サブ：数値入力コンポーネント
+   - 入力中: 素の数値
+   - フォーカス外: 千区切りで表示
    ========================= */
 function NumberInput({
   label,
@@ -363,6 +352,11 @@ function NumberInput({
   value: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
+  const [focused, setFocused] = useState(false);
+
+  // 表示値：フォーカス時は素の値、非フォーカス時はカンマ付
+  const display = focused ? value : formatWithCommas(value);
+
   return (
     <div>
       <label className="mb-1 block text-sm text-gray-700">{label}</label>
@@ -371,8 +365,25 @@ function NumberInput({
         inputMode="decimal"
         className="w-full rounded-md border px-3 py-2"
         placeholder="0"
-        value={value}
-        onChange={onChange}
+        value={display}
+        onChange={(e) => {
+          // 表示はカンマ付きでも渡す値は常にクリーン（カンマ除去）
+          const synthetic = {
+            ...e,
+            target: { ...e.target, value: cleanNumericInput(e.target.value) },
+          } as React.ChangeEvent<HTMLInputElement>;
+          onChange(synthetic);
+        }}
+        onFocus={(e) => {
+          // カーソル位置を末尾に
+          setFocused(true);
+          const el = e.currentTarget;
+          requestAnimationFrame(() => {
+            const len = el.value.length;
+            el.setSelectionRange(len, len);
+          });
+        }}
+        onBlur={() => setFocused(false)}
       />
     </div>
   );
