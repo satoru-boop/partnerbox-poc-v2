@@ -1,6 +1,4 @@
-export const revalidate = 0;
-export const dynamic = 'force-dynamic';
-
+// test
 'use client'
 import React, { useState } from 'react'
 
