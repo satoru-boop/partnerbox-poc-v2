@@ -1,6 +1,8 @@
 // app/api/founder_pl/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { supabaseAdmin } from '../../../lib/supabaseAdmin'; // ★ 相対パスに変更
+
+export const runtime = 'nodejs'; // ★ EdgeではなくNodeで実行
 
 type Row = {
   id: string;
@@ -25,7 +27,7 @@ export async function GET(req: NextRequest) {
     const minAI = num(url.searchParams.get('min_ai'));
     const maxAI = num(url.searchParams.get('max_ai'));
 
-    const minMargin = num(url.searchParams.get('min_margin'));       // 0-100
+    const minMargin = num(url.searchParams.get('min_margin'));
     const maxMargin = num(url.searchParams.get('max_margin'));
     const minOpeMargin = num(url.searchParams.get('min_ope_margin'));
     const maxOpeMargin = num(url.searchParams.get('max_ope_margin'));
@@ -42,7 +44,6 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(Number(url.searchParams.get('limit') ?? 200), 1000);
     const offset = Number(url.searchParams.get('offset') ?? 0);
 
-    // 基本カラムを取得（派生はサーバで計算）
     let query = supabaseAdmin
       .from('founder_pl')
       .select(
@@ -55,31 +56,21 @@ export async function GET(req: NextRequest) {
     if (minAI !== null) query = query.gte('ai_score', minAI);
     if (maxAI !== null) query = query.lte('ai_score', maxAI);
 
-    if (tags.length) {
-      // tags（text[]）にいずれかを含む（OR）
-      // Supabaseのarray operator @> は「包含（AND）」になるため、重くならない範囲でin演算をOR結合
-      // ここは2段階：まず広めに取得→後段でJSフィルタ でもOK
-      // ひとまず broad fetch のまま後段フィルタへ
-    }
-
     if (statuses.length) {
       query = query.in('status', statuses);
     }
 
-    // 並び替え
     query = query.order(sort, { ascending: order === 'asc', nullsFirst: sort === 'created_at' });
 
-    // 取得
     const { data, error, count } = await query.range(offset, offset + limit - 1);
     if (error) throw error;
 
-    // サーバ側で派生指標を付与 & 追加フィルタ
     const rows = (data ?? []).map((r: Row) => {
       const revenue = nz(r.revenue);
       const gross = nz(r.gross_profit);
       const ope = nz(r.operating_income);
-      const grossMargin = revenue > 0 ? (gross / revenue) * 100 : null;       // %
-      const operatingMargin = revenue > 0 ? (ope / revenue) * 100 : null;     // %
+      const grossMargin = revenue > 0 ? (gross / revenue) * 100 : null;
+      const operatingMargin = revenue > 0 ? (ope / revenue) * 100 : null;
       return { ...r, grossMargin, operatingMargin };
     }) as (Row & { grossMargin: number | null; operatingMargin: number | null })[];
 
