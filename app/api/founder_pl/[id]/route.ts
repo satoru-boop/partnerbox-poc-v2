@@ -9,6 +9,13 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 export async function GET(_req: Request, ctx: any) {
   const params = ctx?.params ?? {};
   const parsed = paramsSchema.safeParse(params);
+  +export async function GET(_req: Request, ctx: any) {
++  const params = ctx?.params ?? {};
++  // ✅ pingのときは疎通OKを即返す（動的にマッチしてもOKにする）
++  if (params?.id === 'ping') {
++    return NextResponse.json({ ok: true, via: '/api/founder_pl/[id]', note: 'ping passthrough' });
++  }
++  const parsed = paramsSchema.safeParse(params);
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
   }
