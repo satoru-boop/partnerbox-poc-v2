@@ -6,7 +6,7 @@ import Link from "next/link"
 type Role = "founder" | "investor" | "ops"
 
 const ROLES: { key: Role; label: string; href: string; desc: string }[] = [
-  { key: "founder",  label: "起業家", label: "起業家", href: "/founder",  desc: "PL/KPI入力とAI解析（PoC）" },
+  { key: "founder",  label: "起業家", href: "/founder",  desc: "PL/KPI入力とAI解析（PoC）" },
   { key: "investor", label: "投資家", href: "/investor", desc: "案件リストと詳細確認" },
   { key: "ops",      label: "運営",   href: "/ops",      desc: "運営向けメニュー（仮）" },
 ]
@@ -49,9 +49,7 @@ export default function PageClient() {
             <div style={S.desc}>{r.desc}</div>
             <div style={S.row}>
               <button style={S.btn} onClick={() => onChoose(r.key)}>選ぶ</button>
-              <Link href={r.href} style={S.link}>
-                ▶ 画面へ
-              </Link>
+              <Link href={r.href} style={S.link}>▶ 画面へ</Link>
             </div>
           </div>
         ))}
