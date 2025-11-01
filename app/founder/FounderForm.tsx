@@ -2,31 +2,28 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-type Phase = 'Pre' | 'Seed' | 'SeriesA' | 'SeriesB';
-type Industry = 'SaaS' | 'Other';
-
-type PlInput = {
+type PL = {
   revenue: number;
   cogs: number;
-  adCost: number;
   fixedCost: number;
+  adCost: number;
   cv: number;
+  cvr: number;
   price: number;
-  cvr: number; // %
   cpa: number;
   ltv: number;
-  churn: number; // % / month
+  churn: number;
 };
 
-type FormState = {
+type Draft = {
   title: string;
   summary: string;
-  industry: Industry;
-  phase: Phase;
-  pl: PlInput;
+  industry: string;
+  phase: string;
+  pl: PL;
 };
 
-const EMPTY: FormState = {
+const blank: Draft = {
   title: '',
   summary: '',
   industry: 'SaaS',
@@ -34,175 +31,204 @@ const EMPTY: FormState = {
   pl: {
     revenue: 0,
     cogs: 0,
-    adCost: 0,
     fixedCost: 0,
+    adCost: 0,
     cv: 0,
-    price: 0,
     cvr: 0,
+    price: 0,
     cpa: 0,
     ltv: 0,
     churn: 0,
   },
 };
 
-const STORAGE_KEY = 'pb-founder-form-v1';
+function num(v: any) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
 
 export default function FounderForm() {
-  const [state, setState] = useState<FormState>(EMPTY);
-  const [loaded, setLoaded] = useState(false);
+  const [draft, setDraft] = useState<Draft>(blank);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<null | {
+    kpi: {
+      grossProfit: number;
+      grossMargin: number; // %
+      unitCost: number;
+      contribution: number;
+      ltvToCac: number;
+      paybackMonths: number;
+      perCVProfitAfterAds: number;
+      breakEvenCV: number | null;
+    };
+    advice: string[];
+  }>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // ① 起動時に localStorage から復元
+  // --------------- localStorage 永続化 ---------------
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setState(prev => ({ ...prev, ...JSON.parse(raw) }));
-    } catch {}
-    setLoaded(true);
+    const raw = localStorage.getItem('pb_founder_draft_v1');
+    if (raw) {
+      try {
+        setDraft(JSON.parse(raw));
+      } catch {}
+    }
   }, []);
-
-  // ② 入力のたびに localStorage へ保存（デバウンスなし＝まずはシンプルに）
   useEffect(() => {
-    if (!loaded) return;
+    localStorage.setItem('pb_founder_draft_v1', JSON.stringify(draft));
+  }, [draft]);
+
+  // --------------- 入力ハンドラ ---------------
+  const setPL = (key: keyof PL) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setDraft((d) => ({ ...d, pl: { ...d.pl, [key]: num(e.target.value) } }));
+
+  // --------------- AI解析 ---------------
+  const onAnalyze = async () => {
+    setLoading(true);
+    setError(null);
+    setResult(null);
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {}
-  }, [state, loaded]);
-
-  const update = <K extends keyof FormState>(key: K, v: FormState[K]) =>
-    setState(s => ({ ...s, [key]: v }));
-
-  const updatePl = <K extends keyof PlInput>(key: K, v: number) =>
-    setState(s => ({ ...s, pl: { ...s.pl, [key]: Number.isFinite(v) ? v : 0 } }));
-
-  const number = (e: React.ChangeEvent<HTMLInputElement>) =>
-    parseFloat(e.target.value || '0');
-
-  const onAnalyze = () => {
-    // TODO: ここに「AI解析する」の本処理を移植（昔のロジックを貼り付け）
-    alert('AI解析ダミー。ローカル保存は動いています。');
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ form: draft }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setResult(data);
+    } catch (e: any) {
+      setError(e?.message || '解析に失敗しました');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const onReset = () => {
-    if (!confirm('入力をリセットしますか？（保存データも削除）')) return;
-    localStorage.removeItem(STORAGE_KEY);
-    setState(EMPTY);
-  };
-
-  // 昨日の見た目に寄せた最小の骨格（Tailwind前提）
   return (
-    <div className="mx-auto max-w-6xl px-4">
-      <div className="flex items-center justify-between py-4">
-        <h1 className="text-lg font-semibold">Partner Box — PoC Mock</h1>
-        <div className="flex gap-2">
-          <a href="/founder" className="rounded border px-3 py-1">起業家</a>
-          <a href="/investor" className="rounded border px-3 py-1">投資家</a>
-          <a href="/ops" className="rounded border px-3 py-1">運営</a>
-        </div>
-      </div>
+    <div className="max-w-5xl mx-auto space-y-8">
+      <header className="space-y-2">
+        <h1 className="text-2xl font-bold">起業家用フォーム</h1>
+        <p className="text-sm opacity-70">
+          ここに、以前トップページ（app/page.tsx）にあった PL / KPI 入力フォームを配置しました。
+        </p>
+      </header>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        {/* 左：基本情報 */}
-        <section className="rounded-2xl border p-6">
-          <h2 className="mb-4 text-sm font-semibold">案件の基本情報</h2>
+      {/* ------- 基本情報 ------- */}
+      <section className="grid gap-4">
+        <label className="grid gap-1">
+          <span className="text-sm">案件名</span>
+          <input
+            className="border rounded px-3 py-2"
+            placeholder="例：〇〇向けSaaS"
+            value={draft.title}
+            onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+          />
+        </label>
+        <label className="grid gap-1">
+          <span className="text-sm">30字要約</span>
+          <input
+            className="border rounded px-3 py-2"
+            placeholder="例：美容サロン向け予約SaaS"
+            value={draft.summary}
+            onChange={(e) => setDraft({ ...draft, summary: e.target.value })}
+          />
+        </label>
+      </section>
 
-          <label className="mb-3 block text-sm">
-            案件名
-            <input
-              className="mt-1 w-full rounded-md border px-3 py-2"
-              placeholder="例：〇〇向けSaaS"
-              value={state.title}
-              onChange={(e) => update('title', e.target.value)}
-            />
-          </label>
-
-          <label className="mb-3 block text-sm">
-            30字要約
-            <input
-              className="mt-1 w-full rounded-md border px-3 py-2"
-              placeholder="例：美容サロン向け予約SaaS"
-              value={state.summary}
-              onChange={(e) => update('summary', e.target.value)}
-            />
-          </label>
-
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block text-sm">
-              業種
-              <select
-                className="mt-1 w-full rounded-md border px-3 py-2"
-                value={state.industry}
-                onChange={(e) => update('industry', e.target.value as Industry)}
-              >
-                <option value="SaaS">SaaS</option>
-                <option value="Other">Other</option>
-              </select>
-            </label>
-
-            <label className="block text-sm">
-              フェーズ
-              <select
-                className="mt-1 w-full rounded-md border px-3 py-2"
-                value={state.phase}
-                onChange={(e) => update('phase', e.target.value as Phase)}
-              >
-                <option value="Pre">Pre</option>
-                <option value="Seed">Seed</option>
-                <option value="SeriesA">SeriesA</option>
-                <option value="SeriesB">SeriesB</option>
-              </select>
-            </label>
-          </div>
-        </section>
-
-        {/* 右：PL・KPI（簡易） */}
-        <section className="rounded-2xl border p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-sm font-semibold">PL・KPI（簡易）</h2>
-            <span className="text-xs text-gray-500">＊必須最小</span>
-          </div>
-
+      {/* ------- PL・KPI ------- */}
+      <section className="grid md:grid-cols-2 gap-6">
+        <div className="grid gap-3">
+          <h2 className="font-semibold">PL・KPI（入力）</h2>
           {([
-            ['売上', 'revenue'],
-            ['売上原価', 'cogs'],
-            ['広告費', 'adCost'],
-            ['固定費', 'fixedCost'],
-            ['CV数', 'cv'],
-            ['平均単価', 'price'],
-            ['CVR(%)', 'cvr'],
-            ['CPA', 'cpa'],
-            ['LTV', 'ltv'],
-            ['解約率/月(%)', 'churn'],
-          ] as const).map(([label, key]) => (
-            <label key={key} className="mb-3 block text-sm">
-              {label}
+            ['revenue', '売上'],
+            ['cogs', '売上原価'],
+            ['fixedCost', '固定費'],
+            ['adCost', '広告費'],
+            ['cv', 'CV数'],
+            ['cvr', 'CVR(%)'],
+            ['price', '平均単価'],
+            ['cpa', 'CPA'],
+            ['ltv', 'LTV'],
+            ['churn', '解約率/月(%)'],
+          ] as [keyof PL, string][]).map(([key, label]) => (
+            <label key={key} className="grid grid-cols-2 items-center gap-2">
+              <span className="text-sm">{label}</span>
               <input
-                inputMode="decimal"
-                className="mt-1 w-full rounded-md border px-3 py-2"
-                value={state.pl[key]}
-                onChange={(e) => updatePl(key, number(e))}
+                type="number"
+                className="border rounded px-3 py-2"
+                value={draft.pl[key]}
+                onChange={setPL(key)}
               />
             </label>
           ))}
 
-          <div className="mt-4 flex gap-2">
+          <div className="flex gap-3">
             <button
               onClick={onAnalyze}
-              className="rounded-md bg-black px-4 py-2 text-white"
+              disabled={loading}
+              className="px-4 py-2 rounded bg-black text-white disabled:opacity-50"
             >
-              AI解析する
+              {loading ? '解析中…' : 'AI解析する'}
             </button>
             <button
-              onClick={onReset}
-              className="rounded-md border px-4 py-2"
+              onClick={() => {
+                setDraft(blank);
+                setResult(null);
+                setError(null);
+              }}
+              className="px-4 py-2 rounded border"
             >
               リセット
             </button>
           </div>
-        </section>
-      </div>
 
-      <p className="py-8 text-center text-xs text-gray-500">
-        PoC Mock — この画面はローカル状態のみで動作しています
+          {error && <p className="text-red-600 text-sm">{error}</p>}
+        </div>
+
+        {/* ------- 解析結果 ------- */}
+        <div className="grid gap-3">
+          <h2 className="font-semibold">解析結果</h2>
+          {!result ? (
+            <p className="text-sm opacity-70">「AI解析する」を押すと結果が表示されます。</p>
+          ) : (
+            <div className="rounded border p-4 grid gap-2">
+              <div className="text-sm grid grid-cols-2 gap-x-4 gap-y-1">
+                <span>粗利益</span>
+                <b>{result.kpi.grossProfit.toLocaleString()}</b>
+                <span>粗利率</span>
+                <b>{result.kpi.grossMargin}%</b>
+                <span>1CVあたり原価</span>
+                <b>{result.kpi.unitCost.toLocaleString()}</b>
+                <span>1CVあたり粗利（広告費除く）</span>
+                <b>{result.kpi.contribution.toLocaleString()}</b>
+                <span>LTV/CAC</span>
+                <b>{result.kpi.ltvToCac}</b>
+                <span>広告費差引後の利益/1CV</span>
+                <b>{result.kpi.perCVProfitAfterAds.toLocaleString()}</b>
+                <span>固定費回収に必要なCV</span>
+                <b>
+                  {result.kpi.breakEvenCV === null
+                    ? '計算不可（赤字構造）'
+                    : result.kpi.breakEvenCV.toLocaleString()}
+                </b>
+                <span>予想回収期間（目安/月）</span>
+                <b>{result.kpi.paybackMonths}</b>
+              </div>
+
+              <div className="pt-2">
+                <h3 className="font-medium mb-1">アドバイス</h3>
+                <ul className="list-disc pl-5 text-sm space-y-1">
+                  {result.advice.map((a, i) => (
+                    <li key={i}>{a}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <p className="text-xs opacity-60">
+        ※ 本解析はルールベースの簡易評価です。将来的にサーバ側でLLM解析へ切替可能な構成にしています。
       </p>
     </div>
   );
