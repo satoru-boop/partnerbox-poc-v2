@@ -1,8 +1,11 @@
 // app/api/founder_pl/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '../../../lib/supabaseAdmin'; // ★ 相対パスに変更
+// ❌ 現在: '../../../lib/supabaseAdmin'
+// ✅ 正:   '../../lib/supabaseAdmin'
+import { supabaseAdmin } from '../../lib/supabaseAdmin';
 
-export const runtime = 'nodejs'; // ★ EdgeではなくNodeで実行
+export const runtime = 'nodejs';
+
 
 type Row = {
   id: string;
