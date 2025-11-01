@@ -1,7 +1,7 @@
 // /app/api/founder_pl/[id]/route.ts
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { createClient } from '@/lib/supabaseAdmin';
+import { createClient } from '@/app/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 
