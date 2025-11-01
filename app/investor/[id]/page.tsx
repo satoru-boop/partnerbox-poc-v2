@@ -18,7 +18,7 @@ async function getFounder(id: string) {
   return data;
 }
 
-export default async function InvestorDetailPage({ params }: { params: { id: string } }) {
+export default async function InvestorDetailPage({ params }: any) {
   const founder = await getFounder(params.id);
   if (!founder) notFound();
 
