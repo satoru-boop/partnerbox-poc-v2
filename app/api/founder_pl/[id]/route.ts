@@ -1,22 +1,23 @@
+// /app/api/founder_pl/[id]/route.ts
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/app/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 
-const paramsSchema = z.object({ id: z.string().uuid() });
+const paramsSchema = z.object({ id: z.string() });
 
 export async function GET(_req: Request, ctx: any) {
   const params = ctx?.params ?? {};
+
+  // ✅ /api/founder_pl/ping で来た場合は疎通OKを返す（動的ルートに入ってもOK）
+  if (params?.id === 'ping') {
+    return NextResponse.json({ ok: true, via: '/api/founder_pl/[id]', note: 'ping passthrough' });
+  }
+
+  // 通常のIDチェック（UUIDでなくてもまずは文字列として許容）
   const parsed = paramsSchema.safeParse(params);
-  +export async function GET(_req: Request, ctx: any) {
-+  const params = ctx?.params ?? {};
-+  // ✅ pingのときは疎通OKを即返す（動的にマッチしてもOKにする）
-+  if (params?.id === 'ping') {
-+    return NextResponse.json({ ok: true, via: '/api/founder_pl/[id]', note: 'ping passthrough' });
-+  }
-+  const parsed = paramsSchema.safeParse(params);
-  if (!parsed.success) {
+  if (!parsed.success || !parsed.data.id) {
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
   }
 
@@ -27,12 +28,12 @@ export async function GET(_req: Request, ctx: any) {
     .eq('id', parsed.data.id)
     .single();
 
-  if (error?.code === 'PGRST116' || (!data && !error)) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  }
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+  if (!data) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
 
-  return NextResponse.json(data, { status: 200 });
+  return NextResponse.json({ item: data });
 }
