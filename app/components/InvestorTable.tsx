@@ -1,8 +1,11 @@
-// components/InvestorTable.tsx
+// app/components/InvestorTable.tsx
 'use client';
 
 import { useMemo, useState } from 'react';
-import { downloadCSV, toCSV } from '@/utils/csv';
+// ❌ import { downloadCSV, toCSV } from '@/utils/csv';
+// ✅
+import { downloadCSV, toCSV } from '../../utils/csv';
+
 
 export type InvestorRow = {
   id: string;
