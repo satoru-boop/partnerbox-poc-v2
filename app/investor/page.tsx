@@ -1,51 +1,79 @@
+// /app/investor/page.tsx
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import useSWR from 'swr';
 
-const LS_SUBMIT = 'pb_submissions_v1';
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function InvestorListPage() {
-  const [items, setItems] = useState<any[]>([]);
+  const { data, error, isLoading } = useSWR('/api/founder_pl?page=1&pageSize=50', fetcher);
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(LS_SUBMIT);
-      setItems(raw ? JSON.parse(raw) : []);
-    } catch {
-      setItems([]);
-    }
-  }, []);
+  if (isLoading) {
+    return <div className="p-6 text-sm text-muted-foreground">読み込み中...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 text-sm text-red-600">
+        データ取得に失敗しました: {String(error.message || error)}
+      </div>
+    );
+  }
+
+  const list = data?.items ?? [];
+
+  if (!Array.isArray(list) || list.length === 0) {
+    return <div className="p-6 text-sm text-muted-foreground">データがありません。</div>;
+  }
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="mb-4 text-2xl font-bold">投資家：申請一覧（PoC）</h1>
-      {items.length === 0 ? (
-        <p className="text-sm text-gray-500">
-          まだ申請がありません。起業家画面で「申請する」を実行してください。
-        </p>
-      ) : (
-        <ul className="grid gap-3">
-          {items.map((x) => (
-            <li key={x.id} className="rounded border p-4">
-              <div className="flex items-center justify-between">
-                <div className="text-sm">
-                  <div className="font-medium">{x.form?.title || '(無題案件)'}</div>
-                  <div className="text-gray-500">{x.meta?.createdAt}</div>
-                  <div className="text-gray-500">ID: {x.id}</div>
-                </div>
-                <Link className="rounded bg-black px-3 py-1 text-sm text-white" href={`/investors/${encodeURIComponent(x.id)}`}>
-                  詳細を見る
-                </Link>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+    <div className="mx-auto max-w-6xl p-6">
+      <h1 className="text-2xl font-bold mb-6">投資家リスト</h1>
 
-      <p className="mt-6 text-xs text-gray-500">
-        ※ PoC：同一ブラウザの localStorage に保存された申請のみ表示されます。
-      </p>
-    </main>
+      <table className="w-full border-collapse border text-sm">
+        <thead>
+          <tr className="bg-gray-100">
+            <th className="border px-3 py-2 text-left">会社名</th>
+            <th className="border px-3 py-2 text-left">AIスコア</th>
+            <th className="border px-3 py-2 text-left">売上</th>
+            <th className="border px-3 py-2 text-left">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {list.map((x: any) => (
+            <tr key={x.id ?? Math.random()} className="border-t">
+              <td className="border px-3 py-2">{x.company_name ?? '—'}</td>
+              <td className="border px-3 py-2">{x.ai_score ?? '—'}</td>
+              <td className="border px-3 py-2">{x.revenue?.toLocaleString?.() ?? '—'}</td>
+              <td className="border px-3 py-2">
+                {typeof x.id === 'string' && x.id ? (
+                  <Link
+                    className="rounded bg-black px-3 py-1 text-sm text-white"
+                    href={`/investors/${encodeURIComponent(x.id)}`}
+                    prefetch={false}
+                    title={x.id} // デバッグ用
+                  >
+                    詳細を見る
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    className="rounded bg-gray-300 px-3 py-1 text-sm text-gray-600 cursor-not-allowed"
+                    aria-disabled
+                    title="IDが未設定のため遷移できません"
+                  >
+                    詳細を見る
+                  </button>
+                )}
+                <span className="ml-2 text-xs text-gray-500">
+                  id: {String(x?.id ?? '—')}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
