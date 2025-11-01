@@ -1,5 +1,5 @@
 // app/api/founder_pl/[id]/route.ts
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
@@ -12,11 +12,11 @@ const supabase = createClient(
 );
 
 export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
+  req: Request,
+  context: { params: { id: string } }
 ) {
   try {
-    const { id } = params;
+    const { id } = context.params;
 
     const { data, error } = await supabase
       .from('founder_pl')
@@ -25,10 +25,22 @@ export async function GET(
       .single();
 
     if (error) {
-      const status = error.code === 'PGRST116' ? 404 : 500; // not found or other
+      // Supabaseのnot foundはnull/エラーのどちらでもあり得るため保険をかける
+      const isNotFound =
+        (error as any)?.code === 'PGRST116' ||
+        (error as any)?.details?.includes('Results contain 0 rows') ||
+        !data;
+
       return NextResponse.json(
-        { error: { code: 'DB_SELECT_ERROR', message: error.message } },
-        { status }
+        { error: { code: isNotFound ? 'NOT_FOUND' : 'DB_SELECT_ERROR', message: error.message } },
+        { status: isNotFound ? 404 : 500 }
+      );
+    }
+
+    if (!data) {
+      return NextResponse.json(
+        { error: { code: 'NOT_FOUND', message: 'Record not found' } },
+        { status: 404 }
       );
     }
 
