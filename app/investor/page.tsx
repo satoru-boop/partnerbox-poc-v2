@@ -34,7 +34,7 @@ export default function InvestorListPage() {
                   <div className="text-gray-500">{x.meta?.createdAt}</div>
                   <div className="text-gray-500">ID: {x.id}</div>
                 </div>
-                <Link className="rounded bg-black px-3 py-1 text-sm text-white" href={`/investor/${encodeURIComponent(x.id)}`}>
+                <Link className="rounded bg-black px-3 py-1 text-sm text-white" href={`/investors/${encodeURIComponent(x.id)}`}>
                   詳細を見る
                 </Link>
               </div>
