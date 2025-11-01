@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 
 type Role = "founder" | "investor" | "ops"
@@ -21,36 +20,30 @@ export default function PageClient() {
     if (v) setSelected(v)
   }, [])
 
-  const choose = (r: Role, go = false) => {
+  const choose = (r: Role) => {
     setSelected(r)
     localStorage.setItem("pb-role", r)
-    if (go) {
-      const target = ROLES.find(x => x.key === r)?.href ?? "/"
-      router.push(target)
-    }
-  }
-
-  // カードをキーボードでもフォーカス・Enter/Spaceで発火
-  const keyGo = (r: Role) => (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault()
-      choose(r, true)
-    }
+    const target = ROLES.find(x => x.key === r)?.href ?? "/"
+    router.push(target)
   }
 
   const S = {
     wrap: { maxWidth: 980, margin: "40px auto", padding: "24px", fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" },
     h1:   { fontSize: 28, fontWeight: 800 as const, marginBottom: 24 },
-    grid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 18 },
+    grid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 },
     cardBase: {
       border: "1px solid #e5e7eb",
       borderRadius: 16,
       padding: 20,
       background: "#fff",
       boxShadow: "0 1px 2px rgba(0,0,0,.04)",
-      outline: "none",
       cursor: "pointer",
-      transition: "border-color .15s ease, box-shadow .15s ease, background .15s ease",
+      transition: "all .15s ease",
+    } as React.CSSProperties,
+    cardHover: {
+      transform: "translateY(-2px)",
+      boxShadow: "0 4px 12px rgba(0,0,0,.08)",
+      borderColor: "#2563eb",
     } as React.CSSProperties,
     cardSel: {
       border: "1.5px solid #2563eb",
@@ -58,8 +51,7 @@ export default function PageClient() {
       boxShadow: "0 4px 12px rgba(37,99,235,.10)",
     } as React.CSSProperties,
     ttl:  { fontSize: 20, fontWeight: 800 as const, marginBottom: 10 },
-    desc: { color: "#6b7280", fontSize: 13, marginBottom: 14 },
-    row:  { display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between" },
+    desc: { color: "#6b7280", fontSize: 13, marginBottom: 18 },
     btn:  {
       padding: "10px 14px",
       borderRadius: 10,
@@ -68,8 +60,8 @@ export default function PageClient() {
       color: "#fff",
       fontSize: 14,
       cursor: "pointer",
+      width: "100%",
     } as React.CSSProperties,
-    link: { textDecoration: "none", color: "#111827", fontWeight: 600 } as React.CSSProperties,
     note: { marginTop: 20, color: "#374151" },
     dot:  { width: 8, height: 8, borderRadius: 9999, background: "#10b981", display: "inline-block", marginRight: 6 },
   }
@@ -84,32 +76,17 @@ export default function PageClient() {
           return (
             <div
               key={r.key}
-              tabIndex={0}
-              aria-label={`${r.label}を選択`}
-              onClick={() => choose(r.key, true)}         // カード全体クリックで選択→遷移
-              onKeyDown={keyGo(r.key)}                    // Enter/Spaceでも同様
-              style={{ ...S.cardBase, ...(active ? S.cardSel : {}) }}
+              style={{
+                ...S.cardBase,
+                ...(active ? S.cardSel : {}),
+              }}
+              onMouseEnter={(e) => Object.assign(e.currentTarget.style, S.cardHover)}
+              onMouseLeave={(e) => Object.assign(e.currentTarget.style, active ? S.cardSel : S.cardBase)}
+              onClick={() => choose(r.key)}
             >
               <div style={S.ttl}>{r.label}</div>
               <div style={S.desc}>{r.desc}</div>
-
-              <div style={S.row}>
-                <button
-                  type="button"
-                  style={S.btn}
-                  onClick={(e) => { e.stopPropagation(); choose(r.key, true) }}  // ボタンクリックも選択→遷移
-                >
-                  選ぶ
-                </button>
-
-                <Link
-                  href={r.href}
-                  style={S.link}
-                  onClick={(e) => { e.stopPropagation(); localStorage.setItem("pb-role", r.key) }}
-                >
-                  ▶ 画面へ
-                </Link>
-              </div>
+              <button style={S.btn}>選ぶ</button>
             </div>
           )
         })}
