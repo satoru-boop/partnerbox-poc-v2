@@ -11,12 +11,23 @@ const supabase = createClient(
   { auth: { persistSession: false } }
 );
 
-export async function GET(
-  req: Request,
-  context: { params: { id: string } }
-) {
+// UUIDの簡易バリデーション（ハイフンあり）
+const UUID_V4 =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export async function GET(req: Request) {
   try {
-    const { id } = context.params;
+    // 例: https://domain/api/founder_pl/<id>
+    const url = new URL(req.url);
+    const segments = url.pathname.split('/').filter(Boolean);
+    const id = segments[segments.length - 1]; // 最後のセグメントが [id]
+
+    if (!id || !UUID_V4.test(id)) {
+      return NextResponse.json(
+        { error: { code: 'BAD_REQUEST', message: 'Invalid or missing id' } },
+        { status: 400 }
+      );
+    }
 
     const { data, error } = await supabase
       .from('founder_pl')
@@ -25,14 +36,18 @@ export async function GET(
       .single();
 
     if (error) {
-      // Supabaseのnot foundはnull/エラーのどちらでもあり得るため保険をかける
       const isNotFound =
         (error as any)?.code === 'PGRST116' ||
-        (error as any)?.details?.includes('Results contain 0 rows') ||
+        (error as any)?.details?.includes('0 rows') ||
         !data;
 
       return NextResponse.json(
-        { error: { code: isNotFound ? 'NOT_FOUND' : 'DB_SELECT_ERROR', message: error.message } },
+        {
+          error: {
+            code: isNotFound ? 'NOT_FOUND' : 'DB_SELECT_ERROR',
+            message: error.message,
+          },
+        },
         { status: isNotFound ? 404 : 500 }
       );
     }
