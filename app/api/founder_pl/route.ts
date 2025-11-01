@@ -1,42 +1,118 @@
 // app/api/founder_pl/route.ts
-import { NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/app/lib/supabaseAdmin'
+import { NextRequest, NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
-export async function POST(req: Request) {
+type Row = {
+  id: string;
+  created_at: string | null;
+  company_name: string | null;
+  revenue: number | null;
+  gross_profit: number | null;
+  operating_income: number | null;
+  ai_score: number | null;
+  tags: string[] | null;
+  status: string | null;
+};
+
+export async function GET(req: NextRequest) {
   try {
-    const body = await req.json()
+    const url = new URL(req.url);
+    const sort = (url.searchParams.get('sort') ?? 'ai_score') as 'ai_score' | 'created_at';
+    const order = (url.searchParams.get('order') ?? 'desc') as 'asc' | 'desc';
 
-    // 必須チェック（最低限）
-    if (!body?.title) {
-      return NextResponse.json({ error: 'title is required' }, { status: 400 })
+    const minRevenue = num(url.searchParams.get('min_revenue'));
+    const maxRevenue = num(url.searchParams.get('max_revenue'));
+    const minAI = num(url.searchParams.get('min_ai'));
+    const maxAI = num(url.searchParams.get('max_ai'));
+
+    const minMargin = num(url.searchParams.get('min_margin'));       // 0-100
+    const maxMargin = num(url.searchParams.get('max_margin'));
+    const minOpeMargin = num(url.searchParams.get('min_ope_margin'));
+    const maxOpeMargin = num(url.searchParams.get('max_ope_margin'));
+
+    const tags = (url.searchParams.get('tags') ?? '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+    const statuses = (url.searchParams.get('status') ?? '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    const limit = Math.min(Number(url.searchParams.get('limit') ?? 200), 1000);
+    const offset = Number(url.searchParams.get('offset') ?? 0);
+
+    // 基本カラムを取得（派生はサーバで計算）
+    let query = supabaseAdmin
+      .from('founder_pl')
+      .select(
+        'id, created_at, company_name, revenue, gross_profit, operating_income, ai_score, tags, status',
+        { count: 'exact' }
+      );
+
+    if (minRevenue !== null) query = query.gte('revenue', minRevenue);
+    if (maxRevenue !== null) query = query.lte('revenue', maxRevenue);
+    if (minAI !== null) query = query.gte('ai_score', minAI);
+    if (maxAI !== null) query = query.lte('ai_score', maxAI);
+
+    if (tags.length) {
+      // tags（text[]）にいずれかを含む（OR）
+      // Supabaseのarray operator @> は「包含（AND）」になるため、重くならない範囲でin演算をOR結合
+      // ここは2段階：まず広めに取得→後段でJSフィルタ でもOK
+      // ひとまず broad fetch のまま後段フィルタへ
     }
 
-    const { data, error } = await supabaseAdmin
-      .from('founder_pl')
-      .insert({
-        user_id: body.user_id ?? null,
-        title: body.title ?? null,
-        summary: body.summary ?? null,
-        industry: body.industry ?? null,
-        phase: body.phase ?? null,
-        revenue: body.revenue ?? null,
-        cogs: body.cogs ?? null,
-        ad_cost: body.ad_cost ?? body.adCost ?? null,
-        fixed_cost: body.fixed_cost ?? body.fixedCost ?? null,
-        cv: body.cv ?? null,
-        price: body.price ?? null,
-        cvr: body.cvr ?? null,
-        cpa: body.cpa ?? null,
-        ltv: body.ltv ?? null,
-        churn: body.churn ?? null,
-        ai_score: body.ai_score ?? null,
-      })
-      .select('id')
-      .single()
+    if (statuses.length) {
+      query = query.in('status', statuses);
+    }
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ id: data.id }, { status: 201 })
+    // 並び替え
+    query = query.order(sort, { ascending: order === 'asc', nullsFirst: sort === 'created_at' });
+
+    // 取得
+    const { data, error, count } = await query.range(offset, offset + limit - 1);
+    if (error) throw error;
+
+    // サーバ側で派生指標を付与 & 追加フィルタ
+    const rows = (data ?? []).map((r: Row) => {
+      const revenue = nz(r.revenue);
+      const gross = nz(r.gross_profit);
+      const ope = nz(r.operating_income);
+      const grossMargin = revenue > 0 ? (gross / revenue) * 100 : null;       // %
+      const operatingMargin = revenue > 0 ? (ope / revenue) * 100 : null;     // %
+      return { ...r, grossMargin, operatingMargin };
+    }) as (Row & { grossMargin: number | null; operatingMargin: number | null })[];
+
+    const afterTag = tags.length
+      ? rows.filter(r => (r.tags ?? []).some(t => tags.includes(t)))
+      : rows;
+
+    const afterDerived = afterTag.filter(r => {
+      if (!rangeOk(r.grossMargin, minMargin, maxMargin)) return false;
+      if (!rangeOk(r.operatingMargin, minOpeMargin, maxOpeMargin)) return false;
+      return true;
+    });
+
+    return NextResponse.json({ count, rows: afterDerived });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message ?? 'unknown error' }, { status: 500 })
+    console.error(e);
+    return NextResponse.json({ error: e?.message ?? 'unknown error' }, { status: 500 });
   }
+}
+
+function num(v: string | null): number | null {
+  if (v === null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function nz(v: number | null | undefined): number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : 0;
+}
+
+function rangeOk(val: number | null, min: number | null, max: number | null) {
+  if (val === null) return min === null && max === null ? true : false;
+  if (min !== null && val < min) return false;
+  if (max !== null && val > max) return false;
+  return true;
 }
