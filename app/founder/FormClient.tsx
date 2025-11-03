@@ -2,8 +2,8 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/app/lib/supabaseClient';
 
+/* ========= 型 ========= */
 type Analysis = {
   score: number;
   rank: 'A' | 'B' | 'C' | 'D';
@@ -29,21 +29,32 @@ type Analysis = {
   sanity: string[];
 };
 
+/* ========= 定数 ========= */
 const INDUSTRY_OPTIONS = ['SaaS', '医療', '小売', '製造', 'マーケティング', '教育', 'Fintech', 'その他'];
 const PHASE_OPTIONS = ['Seed', 'Pre-Seed', 'Series A', 'Series B+', 'PMF以降', 'その他'];
 
+/* ========= ヘルパー ========= */
+// 保存用：空文字は null、それ以外は数値
+const numOrNull = (v: string) => (v.trim() === '' ? null : Number(v));
+// 解析用：空文字は 0、それ以外は数値
+const numOrZero = (v: string) => (v.trim() === '' ? 0 : Number(v));
+
+/* ========= 本体 ========= */
 export default function FormClient() {
   const router = useRouter();
+
   const [saving, setSaving] = React.useState(false);
   const [analyzing, setAnalyzing] = React.useState(false);
   const [msg, setMsg] = React.useState<string | null>(null);
 
   const [form, setForm] = React.useState({
+    // 基本
     title: '',
     company_name: '',
     industry: '',
     phase: '',
     summary: '',
+    // PL/KPI
     revenue: '',
     cogs: '',
     ad_cost: '',
@@ -64,11 +75,7 @@ export default function FormClient() {
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
       setForm((s) => ({ ...s, [k]: e.target.value }));
 
-  const n = (v: string) => (v === '' ? 0 : Number(v));
-
-  // =======================
-  // AI解析実行
-  // =======================
+  /* ===== AI解析 ===== */
   async function onAnalyze() {
     setAnalyzing(true);
     setMsg(null);
@@ -80,16 +87,16 @@ export default function FormClient() {
           industry: form.industry,
           phase: form.phase,
           pl: {
-            revenue: n(form.revenue),
-            cogs: n(form.cogs),
-            fixedCost: n(form.fixed_cost),
-            adCost: n(form.ad_cost),
-            cv: n(form.cv),
-            cvr: n(form.cvr),
-            price: n(form.price),
-            cpa: n(form.cpa),
-            ltv: n(form.ltv),
-            churn: n(form.churn),
+            revenue: numOrZero(form.revenue),
+            cogs: numOrZero(form.cogs),
+            fixedCost: numOrZero(form.fixed_cost),
+            adCost: numOrZero(form.ad_cost),
+            cv: numOrZero(form.cv),
+            cvr: numOrZero(form.cvr),
+            price: numOrZero(form.price),
+            cpa: numOrZero(form.cpa),
+            ltv: numOrZero(form.ltv),
+            churn: numOrZero(form.churn),
           },
         },
       };
@@ -99,10 +106,10 @@ export default function FormClient() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
       });
-
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error?.message ?? `status ${res.status}`);
-      setAnalysis(json);
+
+      setAnalysis(json as Analysis);
     } catch (e: any) {
       setMsg(`AI解析エラー: ${e?.message ?? String(e)}`);
     } finally {
@@ -110,9 +117,7 @@ export default function FormClient() {
     }
   }
 
-  // =======================
-  // 保存（Supabaseに登録）
-  // =======================
+  /* ===== 保存（Supabase） ===== */
   async function onSave() {
     setSaving(true);
     setMsg(null);
@@ -125,17 +130,17 @@ export default function FormClient() {
           company_name: form.company_name || null,
           industry: form.industry || null,
           phase: form.phase || null,
-          revenue: n(form.revenue) || null,
+          revenue: numOrNull(form.revenue),
           summary: form.summary || null,
-          cogs: n(form.cogs) || null,
-          fixed_cost: n(form.fixed_cost) || null,
-          ad_cost: n(form.ad_cost) || null,
-          cv: n(form.cv) || null,
-          cvr: n(form.cvr) || null,
-          price: n(form.price) || null,
-          cpa: n(form.cpa) || null,
-          ltv: n(form.ltv) || null,
-          churn: n(form.churn) || null,
+          cogs: numOrNull(form.cogs),
+          fixed_cost: numOrNull(form.fixed_cost),
+          ad_cost: numOrNull(form.ad_cost),
+          cv: numOrNull(form.cv),
+          cvr: numOrNull(form.cvr),
+          price: numOrNull(form.price),
+          cpa: numOrNull(form.cpa),
+          ltv: numOrNull(form.ltv),
+          churn: numOrNull(form.churn),
           ai_score: analysis?.score ?? null,
           tags: null,
         }),
@@ -144,8 +149,10 @@ export default function FormClient() {
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error?.message ?? `status ${res.status}`);
 
-      latestIdRef.current = json?.data?.id;
+      latestIdRef.current = json?.data?.id as string | null;
       setMsg('保存しました');
+      // 保存後に投資家プレビューへ遷移したい場合は下行を有効化
+      // if (latestIdRef.current) router.push(`/investors/${latestIdRef.current}`);
     } catch (e: any) {
       setMsg(`保存エラー: ${e?.message ?? String(e)}`);
     } finally {
@@ -153,21 +160,20 @@ export default function FormClient() {
     }
   }
 
-  // =======================
-  // 公開申請（publishボタン）
-  // =======================
+  /* ===== 公開申請 ===== */
   async function requestPublish() {
     try {
       setSaving(true);
       setMsg(null);
+
       const id = latestIdRef.current;
-      if (!id) throw new Error('保存後に公開申請してください。');
+      if (!id) throw new Error('まず「保存」を実行してください。');
 
       const res = await fetch(`/api/fpl/${id}/publish`, { method: 'POST' });
       const json = await res.json();
-
       if (!res.ok) throw new Error(json?.error?.message ?? `status ${res.status}`);
-      setMsg(json.message ?? '公開申請を受け付けました（審査中に移行）');
+
+      setMsg(json?.message ?? '公開申請を受け付けました（審査中に移行）');
     } catch (e: any) {
       setMsg(`申請エラー: ${e?.message ?? String(e)}`);
     } finally {
@@ -175,13 +181,11 @@ export default function FormClient() {
     }
   }
 
-  // =======================
-  // UI描画
-  // =======================
+  /* ===== UI ===== */
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* 左カラム：基本情報 */}
+        {/* 左：基本情報 */}
         <section className="rounded-2xl border p-5 space-y-4">
           <h2 className="font-semibold mb-1">事業の基本情報</h2>
 
@@ -232,7 +236,7 @@ export default function FormClient() {
           </div>
         </section>
 
-        {/* 右カラム：PL・KPI */}
+        {/* 右：PL・KPI */}
         <section className="rounded-2xl border p-5 space-y-4">
           <h2 className="font-semibold mb-1">PL・KPI（簡易）</h2>
 
@@ -260,7 +264,7 @@ export default function FormClient() {
         </section>
       </div>
 
-      {/* AI解析結果 */}
+      {/* 解析結果 */}
       {analysis && (
         <>
           <section className="rounded-2xl border p-5">
@@ -307,7 +311,7 @@ export default function FormClient() {
             </ul>
           </section>
 
-          {/* ボタン類 */}
+          {/* ボタン */}
           <section className="flex flex-wrap gap-3">
             <button
               type="button"
@@ -335,10 +339,7 @@ export default function FormClient() {
   );
 }
 
-// =======================
-// 小コンポーネント群
-// =======================
-
+/* ========= 小コンポーネント ========= */
 function Num({
   label,
   val,
