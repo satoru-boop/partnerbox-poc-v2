@@ -1,13 +1,14 @@
-'use client';
-import FormClient from './FormClient';
+import FormClient from '@/app/components/FormClient';
+
+export const dynamic = 'force-dynamic';
+export const dynamicParams = true;
 
 export default function Page() {
   return (
-    <main className="mx-auto max-w-3xl p-6 space-y-6">
+    <main className="mx-auto max-w-4xl p-6 space-y-6">
       <h1 className="text-2xl font-bold">Founder 登録（AI解析フォーム）</h1>
       <p className="text-sm text-gray-600">
-        入力後に <strong>AI解析</strong> をクリックすると、AIがスコアと要約を生成します。
-        内容を確認して<strong>保存</strong>すると、投資家プレビュー（/investors/:id）へ遷移します。
+        入力後に <b>AI解析</b> をクリックすると、AIがスコアと要約・KPIを生成します。内容を確認して <b>保存</b> すると投資家プレビュー（/investors/:id）へ遷移します。
       </p>
       <FormClient />
     </main>
