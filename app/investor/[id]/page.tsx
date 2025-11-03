@@ -9,4 +9,5 @@ export default async function Page({
 }) {
   const { id } = await params;
   redirect(`/investors/${id}`);
+
 }
