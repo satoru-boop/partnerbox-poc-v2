@@ -126,6 +126,16 @@ export default function FormClient() {
         <section className="rounded-2xl border p-5 space-y-4">
           <h2 className="font-semibold mb-1">事業の基本情報</h2>
 
+            {/* 👇 新規追加：会社名 */}
+          <label className="text-sm block">
+            <span className="block text-gray-600 mb-1">会社名（company_name）</span>
+            <input className="w-full rounded border px-3 py-2"
+                   value={form.company_name}
+                   onChange={onChange('company_name')}
+                   placeholder="例）株式会社スパイストラフィックス"
+             />
+         </label>
+
           <label className="text-sm block">
             <span className="block text-gray-600 mb-1">30字要約（title）</span>
             <input className="w-full rounded border px-3 py-2" value={form.title} onChange={onChange('title')}
