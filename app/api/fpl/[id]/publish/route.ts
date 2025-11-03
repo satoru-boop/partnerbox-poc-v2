@@ -1,21 +1,31 @@
+// app/api/fpl/[id]/publish/route.ts
 import { NextResponse } from 'next/server';
 import { createClient } from '@/app/lib/supabaseAdmin';
 
-// POST /api/fpl/:id/publish
-export async function POST(_req: Request, { params }: any) {
-  const id = params?.id as string;
-  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+export async function POST(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
+  const { id } = params;
 
   const supabase = createClient();
-
-  // status を review（審査中）に更新
   const { error } = await supabase
     .from('founder_pl')
-    .update({ status: 'review' })
+    .update({
+      status: 'review',
+      submitted_at: new Date().toISOString(),
+    })
     .eq('id', id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: { message: error.message } },
+      { status: 500 }
+    );
   }
-  return NextResponse.json({ ok: true, id });
+
+  return NextResponse.json({
+    ok: true,
+    message: '公開申請を受け付けました（審査中に移行）',
+  });
 }
