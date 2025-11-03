@@ -1,160 +1,76 @@
-// app/components/InvestorTable.tsx
-'use client';
-
-import { useMemo, useState } from 'react';
-// ❌ import { downloadCSV, toCSV } from '@/utils/csv';
-// ✅
-import { downloadCSV, toCSV } from '../utils/csv';
-
-
-export type InvestorRow = {
+// components/InvestorTable.tsx
+type Row = {
   id: string;
-  created_at: string | null;
+  title: string | null;
   company_name: string | null;
+  industry: string | null;
+  phase: string | null;
   revenue: number | null;
-  gross_profit: number | null;
-  operating_income: number | null;
   ai_score: number | null;
-  tags: string[] | null;
-  status: string | null;
-  // derived
-  grossMargin?: number | null;
-  operatingMargin?: number | null;
+  created_at: string;
 };
 
-export default function InvestorTable({
-  rows,
-  compact = true,
-}: {
-  rows: InvestorRow[];
-  compact?: boolean;
-}) {
-  const [mode, setMode] = useState<'compact' | 'comfortable'>(compact ? 'compact' : 'comfortable');
+function fmtNum(n: number | null | undefined) {
+  if (typeof n !== 'number') return '—';
+  return n.toLocaleString('ja-JP');
+}
 
-  const headers = [
-    'id',
-    'company_name',
-    'created_at',
-    'revenue',
-    'gross_profit',
-    'operating_income',
-    'grossMargin(%)',
-    'operatingMargin(%)',
-    'ai_score',
-    'tags',
-    'status',
-  ];
+function fmtDate(iso: string) {
+  try {
+    return new Date(iso).toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return iso ?? '—';
+  }
+}
 
-  const dataForCsv = useMemo(
-    () =>
-      rows.map((r) => ({
-        id: r.id,
-        company_name: r.company_name ?? '',
-        created_at: r.created_at ?? '',
-        revenue: fmtNum(r.revenue),
-        gross_profit: fmtNum(r.gross_profit),
-        operating_income: fmtNum(r.operating_income),
-        'grossMargin(%)': fmtPct(r.grossMargin),
-        'operatingMargin(%)': fmtPct(r.operatingMargin),
-        ai_score: fmtNum(r.ai_score),
-        tags: (r.tags ?? []).join('|'),
-        status: r.status ?? '',
-      })),
-    [rows]
-  );
-
-  const exportCSV = () => {
-    const csv = toCSV(dataForCsv, headers);
-    downloadCSV(`founder_pl_${Date.now()}.csv`, csv);
-  };
-
-  const rowPad = mode === 'compact' ? 'py-1' : 'py-3';
-
+export default function InvestorTable({ rows }: { rows: Row[] }) {
   return (
-    <div className="rounded-2xl border">
-      <div className="flex items-center justify-between p-3">
-        <div className="text-sm text-gray-500">
-          {rows.length.toLocaleString()} 件
-        </div>
-        <div className="flex items-center gap-2">
-          <button className="btn btn-sm" onClick={exportCSV}>CSVエクスポート</button>
-          <div className="join">
-            <button
-              className={`btn btn-sm join-item ${mode === 'compact' ? 'btn-active' : ''}`}
-              onClick={() => setMode('compact')}
-              title="詰めて表示"
-            >
-              Compact
-            </button>
-            <button
-              className={`btn btn-sm join-item ${mode === 'comfortable' ? 'btn-active' : ''}`}
-              onClick={() => setMode('comfortable')}
-              title="ゆったり表示"
-            >
-              Comfortable
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="table table-zebra">
-          <thead>
-            <tr>
-              <Th>会社名</Th>
-              <Th>AIスコア</Th>
-              <Th>売上</Th>
-              <Th>粗利</Th>
-              <Th>粗利率</Th>
-              <Th>営業利益</Th>
-              <Th>営業利益率</Th>
-              <Th>ステータス</Th>
-              <Th>タグ</Th>
-              <Th>登録日</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className={rowPad}>
-                <td className="whitespace-nowrap">
-                  <div className="font-medium">{r.company_name ?? '-'}</div>
-                  <div className="text-xs text-gray-400">{r.id}</div>
+    <div className="overflow-x-auto rounded-xl border">
+      <table className="w-full text-sm">
+        <thead className="bg-gray-50 text-gray-600">
+          <tr className="[&>th]:px-4 [&>th]:py-3 [&>th]:text-left">
+            <th className="w-[32%]">案件名 / 会社名</th>
+            <th className="w-[10%]">業種</th>
+            <th className="w-[10%]">フェーズ</th>
+            <th className="w-[10%] text-right">売上高</th>
+            <th className="w-[8%] text-center">AIスコア</th>
+            <th className="w-[18%]">作成日</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {rows.map((r) => {
+            const title = r.title ?? '（未入力）';
+            const company = r.company_name ?? '会社なし';
+            return (
+              <tr key={r.id} className="hover:bg-gray-50">
+                <td className="px-4 py-3">
+                  <a href={`/investors/${r.id}`} className="font-medium text-blue-700 underline underline-offset-2">
+                    {title}
+                  </a>
+                  <div className="text-[12px] text-gray-500 mt-0.5">{company}</div>
+                  <div className="text-[11px] text-gray-400">ID: {r.id}</div>
                 </td>
-                <td>{n(r.ai_score)}</td>
-                <td>{n(r.revenue)}</td>
-                <td>{n(r.gross_profit)}</td>
-                <td>{pct(r.grossMargin)}</td>
-                <td>{n(r.operating_income)}</td>
-                <td>{pct(r.operatingMargin)}</td>
-                <td>{r.status ?? '-'}</td>
-                <td className="max-w-[260px] truncate" title={(r.tags ?? []).join(', ')}>
-                  {(r.tags ?? []).join(', ')}
+                <td className="px-4 py-3">{r.industry ?? '—'}</td>
+                <td className="px-4 py-3">{r.phase ?? '—'}</td>
+                <td className="px-4 py-3 text-right">{fmtNum(r.revenue)}</td>
+                <td className="px-4 py-3">
+                  <div className="mx-auto inline-flex min-w-10 items-center justify-center rounded-full border px-2 py-0.5 text-xs text-gray-700">
+                    {typeof r.ai_score === 'number' ? r.ai_score : '—'}
+                  </div>
                 </td>
-                <td className="whitespace-nowrap text-xs text-gray-500">
-                  {r.created_at ? new Date(r.created_at).toLocaleString() : '-'}
-                </td>
+                <td className="px-4 py-3">{fmtDate(r.created_at)}</td>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            );
+          })}
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={6} className="px-4 py-10 text-center text-gray-500">
+                データがありません。右上の「登録」から追加してください。
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     </div>
   );
-}
-
-function Th({ children }: { children: React.ReactNode }) {
-  return <th className="text-xs font-semibold uppercase tracking-wide text-gray-500">{children}</th>;
-}
-
-function n(v: number | null | undefined) {
-  return typeof v === 'number' && Number.isFinite(v) ? v.toLocaleString() : '-';
-}
-function pct(v: number | null | undefined) {
-  return typeof v === 'number' && Number.isFinite(v) ? `${v.toFixed(1)}%` : '-';
-}
-function fmtNum(v: number | null | undefined) {
-  return typeof v === 'number' && Number.isFinite(v) ? v : '';
-}
-function fmtPct(v: number | null | undefined) {
-  return typeof v === 'number' && Number.isFinite(v) ? Number(v.toFixed(2)) : '';
 }

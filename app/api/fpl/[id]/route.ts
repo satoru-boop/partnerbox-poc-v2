@@ -1,49 +1,50 @@
+// app/api/fpl/[id]/route.ts
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/app/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { persistSession: false } }
-);
+// Next.js 16 では context.params は Promise
+type Ctx = { params: Promise<{ id: string }> };
 
-const UUID_V4 =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export async function GET(_req: Request, { params }: Ctx) {
+  const { id } = await params;
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('founder_pl')
+    .select('*')
+    .eq('id', id)
+    .single();
 
-export async function GET(req: Request) {
-  try {
-    const url = new URL(req.url);
-    const segments = url.pathname.split('/').filter(Boolean);
-    const id = segments[segments.length - 1];
+  if (error) return NextResponse.json({ error }, { status: 500 });
+  return NextResponse.json({ data });
+}
 
-    if (!id || !UUID_V4.test(id)) {
-      return NextResponse.json(
-        { error: { code: 'BAD_REQUEST', message: 'Invalid or missing id' } },
-        { status: 400 }
-      );
-    }
+export async function PATCH(req: Request, { params }: Ctx) {
+  const { id } = await params;
+  const body = await req.json().catch(() => ({}));
 
-    const { data, error } = await supabase
-      .from('founder_pl')
-      .select('*')
-      .eq('id', id)
-      .single();
+  const allow = [
+    'title','company_name','industry','phase','revenue','ai_score','summary',
+    'gross_profit','operating_income','cogs','ad_cost','fixed_cost','cv',
+    'price','cvr','cpa','ltv','churn','tags'
+  ] as const;
 
-    if (error || !data) {
-      return NextResponse.json(
-        { error: { code: 'NOT_FOUND', message: 'Record not found' } },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ data });
-  } catch (e: any) {
-    return NextResponse.json(
-      { error: { code: 'UNEXPECTED', message: e?.message ?? 'unknown' } },
-      { status: 500 }
-    );
+  const payload: Record<string, any> = {};
+  for (const k of allow) if (k in body) payload[k] = body[k];
+  if (Object.keys(payload).length === 0) {
+    return NextResponse.json({ error: { message: 'no updatable fields' } }, { status: 400 });
   }
+
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('founder_pl')
+    .update(payload)
+    .eq('id', id)
+    .select('*')
+    .single();
+
+  if (error) return NextResponse.json({ error }, { status: 500 });
+  return NextResponse.json({ data });
 }

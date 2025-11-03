@@ -1,17 +1,9 @@
 // next.config.ts
-import type { NextConfig } from 'next';
-
-const nextConfig: NextConfig = {
-  experimental: {
-    forceSwcTransforms: true,
-  },
-  generateBuildId: async () => String(Date.now()),
+const nextConfig = {
   async redirects() {
     return [
-      // /investor/:id → /investors/:id を恒久リダイレクト
-      { source: '/investor/:id', destination: '/investors/:id', permanent: true },
+      { source: '/submit', destination: '/founder', permanent: false },
     ];
   },
 };
-
 export default nextConfig;
