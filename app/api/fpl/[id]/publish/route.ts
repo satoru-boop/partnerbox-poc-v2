@@ -1,26 +1,16 @@
 // app/api/fpl/[id]/publish/route.ts
 import { NextResponse } from 'next/server';
 
-/** キャッシュさせない（念のため） */
 export const dynamic = 'force-dynamic';
+// （任意）Edge で不安定なら Node 実行を強制
+export const runtime = 'nodejs';
 
-/**
- * Next.js 16 の正しいシグネチャ
- * 第二引数は { params: { id: string } } の形で受け取る
- */
-export async function POST(
-  _req: Request,
-  context: { params: { id: string } }
-) {
-  const id = context.params?.id;
+export async function POST(_req: Request, context: any) {
+  const id = context?.params?.id as string | undefined;
   if (!id) {
-    return NextResponse.json(
-      { error: { message: 'missing id' } },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: { message: 'missing id' } }, { status: 400 });
   }
 
-  // Supabase REST エンドポイントに PATCH
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -42,10 +32,9 @@ export async function POST(
       Prefer: 'return=representation',
     },
     body: JSON.stringify({
-      status: 'review', // 「審査中」へ
+      status: 'review', // 審査中へ遷移
       submitted_at: new Date().toISOString(),
     }),
-    // Next.js 16 の Edge/Node どちらでも動く
     cache: 'no-store',
   });
 
