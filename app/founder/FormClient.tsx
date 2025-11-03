@@ -132,7 +132,7 @@ export default function FormClient() {
             <input className="w-full rounded border px-3 py-2"
                    value={form.company_name}
                    onChange={onChange('company_name')}
-                   placeholder="例）株式会社スパイストラフィックス"
+                   placeholder="例）株式会社test"
              />
          </label>
 
@@ -231,18 +231,16 @@ export default function FormClient() {
           </section>
 
           <section className="flex flex-wrap gap-3">
-            <button type="button" onClick={onAnalyze}
-                    className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
-              修正して再解析
-            </button>
-            <button type="button" onClick={onSave} disabled={saving}
-                    className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-60">
-              {saving ? '保存中…' : '保存して投資家プレビューへ'}
-            </button>
-            <button type="button" className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
-              公開申請
-            </button>
-          </section>
+  <button
+    type="button"
+    onClick={requestPublish}
+    disabled={saving}
+    className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-60"
+  >
+    {saving ? '申請中…' : '公開申請'}
+  </button>
+</section>
+
         </>
       )}
 
