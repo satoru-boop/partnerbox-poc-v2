@@ -1,49 +1,67 @@
 // app/api/fpl/[id]/publish/route.ts
 import { NextResponse } from 'next/server';
-import { createClient } from '@/app/lib/supabaseAdmin';
 
+/** キャッシュさせない（念のため） */
 export const dynamic = 'force-dynamic';
 
+/**
+ * Next.js 16 の正しいシグネチャ
+ * 第二引数は { params: { id: string } } の形で受け取る
+ */
 export async function POST(
   _req: Request,
   context: { params: { id: string } }
 ) {
-  try {
-    const id = context?.params?.id;
-    if (!id) {
-      return NextResponse.json(
-        { error: { message: 'Missing id' } },
-        { status: 400 }
-      );
-    }
-
-    const supabase = createClient();
-
-    const { data, error } = await supabase
-      .from('founder_pl')
-      .update({
-        status: 'review',
-        submitted_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .select('id, status, submitted_at')
-      .single();
-
-    if (error) {
-      return NextResponse.json(
-        { error: { message: error.message } },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({
-      message: '公開申請を受け付けました（審査中に移行）',
-      data,
-    });
-  } catch (e: any) {
+  const id = context.params?.id;
+  if (!id) {
     return NextResponse.json(
-      { error: { message: e?.message ?? String(e) } },
+      { error: { message: 'missing id' } },
+      { status: 400 }
+    );
+  }
+
+  // Supabase REST エンドポイントに PATCH
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !serviceKey) {
+    return NextResponse.json(
+      { error: { message: 'Supabase 環境変数が未設定です' } },
       { status: 500 }
     );
   }
+
+  const endpoint = `${url}/rest/v1/founder_pl?id=eq.${encodeURIComponent(id)}`;
+
+  const resp = await fetch(endpoint, {
+    method: 'PATCH',
+    headers: {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify({
+      status: 'review', // 「審査中」へ
+      submitted_at: new Date().toISOString(),
+    }),
+    // Next.js 16 の Edge/Node どちらでも動く
+    cache: 'no-store',
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    return NextResponse.json(
+      { error: { message: `Supabase update failed: ${resp.status} ${text}` } },
+      { status: 500 }
+    );
+  }
+
+  const rows = await resp.json();
+  const updated = Array.isArray(rows) ? rows[0] : null;
+
+  return NextResponse.json({
+    message: '公開申請を受け付けました（審査中に移行）',
+    data: updated ?? null,
+  });
 }
