@@ -5,11 +5,17 @@ import { useRouter } from 'next/navigation';
 
 type Analysis = {
   score: number;
-  rank: 'A'|'B'|'C'|'D';
-  subscores: { financeFit: number; viability: number; goToMarket: number; risk: number; };
+  rank: 'A' | 'B' | 'C' | 'D';
+  subscores: { financeFit: number; viability: number; goToMarket: number; risk: number };
   kpi: {
-    grossProfit: number; grossMargin: number; unitCost: number; contribution: number;
-    ltvToCac: number; paybackMonths: number; perCVProfitAfterAds: number; breakEvenCV: number|null;
+    grossProfit: number;
+    grossMargin: number;
+    unitCost: number;
+    contribution: number;
+    ltvToCac: number;
+    paybackMonths: number;
+    perCVProfitAfterAds: number;
+    breakEvenCV: number | null;
   };
   strengths: string[];
   risks: string[];
@@ -17,14 +23,14 @@ type Analysis = {
   sanity: string[];
 };
 
-const INDUSTRY_OPTIONS = ['SaaS','医療','小売','製造','マーケティング','教育','Fintech','その他'];
-const PHASE_OPTIONS = ['Seed','Pre-Seed','Series A','Series B+','PMF以降','その他'];
+const INDUSTRY_OPTIONS = ['SaaS', '医療', '小売', '製造', 'マーケティング', '教育', 'Fintech', 'その他'];
+const PHASE_OPTIONS = ['Seed', 'Pre-Seed', 'Series A', 'Series B+', 'PMF以降', 'その他'];
 
 export default function FormClient() {
   const router = useRouter();
   const [saving, setSaving] = React.useState(false);
   const [analyzing, setAnalyzing] = React.useState(false);
-  const [msg, setMsg] = React.useState<string|null>(null);
+  const [msg, setMsg] = React.useState<string | null>(null);
 
   const [form, setForm] = React.useState({
     // 基本
@@ -33,23 +39,32 @@ export default function FormClient() {
     industry: '',
     phase: '',
     summary: '',
-
     // PL・KPI
-    revenue: '', cogs: '', ad_cost: '', fixed_cost: '',
-    cv: '', price: '', cvr: '', cpa: '', ltv: '', churn: '',
+    revenue: '',
+    cogs: '',
+    ad_cost: '',
+    fixed_cost: '',
+    cv: '',
+    price: '',
+    cvr: '',
+    cpa: '',
+    ltv: '',
+    churn: '',
   });
 
-  const [analysis, setAnalysis] = React.useState<Analysis|null>(null);
+  const [analysis, setAnalysis] = React.useState<Analysis | null>(null);
 
   const onChange =
     (k: keyof typeof form) =>
-    (e: React.ChangeEvent<HTMLInputElement|HTMLTextAreaElement|HTMLSelectElement>) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
       setForm((s) => ({ ...s, [k]: e.target.value }));
 
   const n = (v: string) => (v === '' ? 0 : Number(v));
 
+  // ===== AI解析 =====
   async function onAnalyze() {
-    setAnalyzing(true); setMsg(null);
+    setAnalyzing(true);
+    setMsg(null);
     try {
       const payload = {
         form: {
@@ -71,48 +86,67 @@ export default function FormClient() {
           },
         },
       };
-      const res = await fetch('/api/analyze', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error?.message ?? `status ${res.status}`);
       setAnalysis(json);
-    } catch (e:any) {
+    } catch (e: any) {
       setMsg(`AI解析エラー: ${e?.message ?? String(e)}`);
     } finally {
       setAnalyzing(false);
     }
   }
 
-  async function onSave() {
-    setSaving(true); setMsg(null);
+  // ===== 公開申請（保存→申請） =====
+  async function requestPublish() {
+    setSaving(true);
+    setMsg(null);
     try {
-      const res = await fetch('/api/fpl', {
+      const payload = {
+        title: form.title || null,
+        company_name: form.company_name || null,
+        industry: form.industry || null,
+        phase: form.phase || null,
+        revenue: n(form.revenue) || null,
+        summary: form.summary || null,
+        cogs: n(form.cogs) || null,
+        fixed_cost: n(form.fixed_cost) || null,
+        ad_cost: n(form.ad_cost) || null,
+        cv: n(form.cv) || null,
+        cvr: n(form.cvr) || null,
+        price: n(form.price) || null,
+        cpa: n(form.cpa) || null,
+        ltv: n(form.ltv) || null,
+        churn: n(form.churn) || null,
+        ai_score: analysis?.score ?? null,
+        tags: null,
+      };
+
+      // 1) 保存
+      const saveRes = await fetch('/api/fpl', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          title: form.title || null,
-          company_name: form.company_name || null,
-          industry: form.industry || null,
-          phase: form.phase || null,
-          revenue: n(form.revenue) || null,
-          summary: form.summary || null,
-          cogs: n(form.cogs) || null,
-          fixed_cost: n(form.fixed_cost) || null,
-          ad_cost: n(form.ad_cost) || null,
-          cv: n(form.cv) || null,
-          cvr: n(form.cvr) || null,
-          price: n(form.price) || null,
-          cpa: n(form.cpa) || null,
-          ltv: n(form.ltv) || null,
-          churn: n(form.churn) || null,
-          ai_score: analysis?.score ?? null,
-          tags: null,
-        }),
+        body: JSON.stringify(payload),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error?.message ?? `status ${res.status}`);
-      router.push(`/investors/${json.data.id}`);
-    } catch (e:any) {
-      setMsg(`保存エラー: ${e?.message ?? String(e)}`);
+      const saveJson = await saveRes.json();
+      if (!saveRes.ok) throw new Error(saveJson?.error?.message ?? `save status ${saveRes.status}`);
+      const id: string = saveJson?.data?.id;
+      if (!id) throw new Error('ID が取得できませんでした');
+
+      // 2) 公開申請
+      const pubRes = await fetch(`/api/fpl/${id}/publish`, { method: 'POST' });
+      const pubJson = await pubRes.json();
+      if (!pubRes.ok) throw new Error(pubJson?.error ?? `publish status ${pubRes.status}`);
+
+      setMsg('公開申請を受け付けました（審査中に移行）。');
+      // 必要ならプレビューへ遷移
+      // router.push(`/investors/${id}`);
+    } catch (e: any) {
+      setMsg(`公開申請エラー: ${e?.message ?? String(e)}`);
     } finally {
       setSaving(false);
     }
@@ -126,20 +160,26 @@ export default function FormClient() {
         <section className="rounded-2xl border p-5 space-y-4">
           <h2 className="font-semibold mb-1">事業の基本情報</h2>
 
-            {/* 👇 新規追加：会社名 */}
+          {/* 会社名 */}
           <label className="text-sm block">
             <span className="block text-gray-600 mb-1">会社名（company_name）</span>
-            <input className="w-full rounded border px-3 py-2"
-                   value={form.company_name}
-                   onChange={onChange('company_name')}
-                   placeholder="例）株式会社test"
-             />
-         </label>
+            <input
+              className="w-full rounded border px-3 py-2"
+              value={form.company_name}
+              onChange={onChange('company_name')}
+              placeholder="例）株式会社〇〇"
+            />
+          </label>
 
+          {/* 30字要約 */}
           <label className="text-sm block">
             <span className="block text-gray-600 mb-1">30字要約（title）</span>
-            <input className="w-full rounded border px-3 py-2" value={form.title} onChange={onChange('title')}
-                   placeholder="フランチャイザー向けの配送サービスプラットフォーム" />
+            <input
+              className="w-full rounded border px-3 py-2"
+              value={form.title}
+              onChange={onChange('title')}
+              placeholder="フランチャイザー向けの配送サービスプラットフォーム"
+            />
           </label>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -147,7 +187,11 @@ export default function FormClient() {
               <span className="block text-gray-600 mb-1">業種</span>
               <select className="w-full rounded border px-3 py-2" value={form.industry} onChange={onChange('industry')}>
                 <option value="">選択してください</option>
-                {INDUSTRY_OPTIONS.map(v => <option key={v} value={v}>{v}</option>)}
+                {INDUSTRY_OPTIONS.map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
               </select>
             </label>
 
@@ -155,7 +199,11 @@ export default function FormClient() {
               <span className="block text-gray-600 mb-1">フェーズ</span>
               <select className="w-full rounded border px-3 py-2" value={form.phase} onChange={onChange('phase')}>
                 <option value="">選択してください</option>
-                {PHASE_OPTIONS.map(v => <option key={v} value={v}>{v}</option>)}
+                {PHASE_OPTIONS.map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
               </select>
             </label>
           </div>
@@ -178,8 +226,12 @@ export default function FormClient() {
             <Num label="解約率/月(%)" val={form.churn} onChange={onChange('churn')} />
           </div>
 
-          <button type="button" onClick={onAnalyze} disabled={analyzing}
-                  className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-60">
+          <button
+            type="button"
+            onClick={onAnalyze}
+            disabled={analyzing}
+            className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-60"
+          >
             {analyzing ? 'AI解析中…' : 'AI解析する'}
           </button>
         </section>
@@ -226,21 +278,23 @@ export default function FormClient() {
           <section className="rounded-2xl border p-5">
             <h3 className="font-semibold mb-2">整合性チェック</h3>
             <ul className="list-disc pl-6 text-sm space-y-1">
-              {analysis.sanity.map((s, i) => <li key={i}>{s}</li>)}
+              {analysis.sanity.map((s, i) => (
+                <li key={i}>{s}</li>
+              ))}
             </ul>
           </section>
 
+          {/* ボタン：公開申請のみ（投資家プレビューは撤去） */}
           <section className="flex flex-wrap gap-3">
-  <button
-    type="button"
-    onClick={requestPublish}
-    disabled={saving}
-    className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-60"
-  >
-    {saving ? '申請中…' : '公開申請'}
-  </button>
-</section>
-
+            <button
+              type="button"
+              onClick={requestPublish}
+              disabled={saving}
+              className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-60"
+            >
+              {saving ? '申請中…' : '公開申請'}
+            </button>
+          </section>
         </>
       )}
 
@@ -250,8 +304,14 @@ export default function FormClient() {
 }
 
 function Num({
-  label, val, onChange,
-}: { label: string; val: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void }) {
+  label,
+  val,
+  onChange,
+}: {
+  label: string;
+  val: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
   return (
     <label className="text-sm">
       <span className="block text-gray-600 mb-1">{label}</span>
@@ -263,7 +323,10 @@ function Num({
 function Bar({ label, value }: { label: string; value: number }) {
   return (
     <div>
-      <div className="flex justify-between"><span>{label}</span><span>{value}</span></div>
+      <div className="flex justify-between">
+        <span>{label}</span>
+        <span>{value}</span>
+      </div>
       <div className="h-2 rounded bg-gray-200">
         <div className="h-2 rounded bg-gray-800" style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
       </div>

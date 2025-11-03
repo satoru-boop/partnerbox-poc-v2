@@ -1,42 +1,21 @@
-// app/api/fpl/[id]/publish/route.ts
 import { NextResponse } from 'next/server';
 import { createClient } from '@/app/lib/supabaseAdmin';
 
-export async function POST(
-  _req: Request,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const id = params.id;
-    const supabase = createClient();
+// POST /api/fpl/:id/publish
+export async function POST(_req: Request, ctx: { params: { id: string } }) {
+  const id = ctx?.params?.id;
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
 
-    // 存在チェック
-    const { data: found, error: getErr } = await supabase
-      .from('founder_pl')
-      .select('id,status')
-      .eq('id', id)
-      .single();
-    if (getErr || !found) {
-      return NextResponse.json({ error: 'not_found' }, { status: 404 });
-    }
+  const supabase = createClient();
 
-    // 下書き→審査中 へ
-    const { data, error } = await supabase
-      .from('founder_pl')
-      .update({
-        status: 'review',
-        submitted_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .select('id,status,submitted_at')
-      .single();
+  // status を review（審査中）へ更新
+  const { error } = await supabase
+    .from('founder_pl')
+    .update({ status: 'review' })
+    .eq('id', id);
 
-    if (error) throw error;
-    return NextResponse.json({ ok: true, data });
-  } catch (e: any) {
-    return NextResponse.json(
-      { ok: false, error: e?.message ?? 'publish_failed' },
-      { status: 500 }
-    );
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
+  return NextResponse.json({ ok: true, id });
 }
