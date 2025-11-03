@@ -1,5 +1,5 @@
-import FormClient from '@/app/components/FormClient';
-
+// app/founder/page.tsx
+import FormClient from './FormClient';   // ← 相対パスに直す
 export const dynamic = 'force-dynamic';
 export const dynamicParams = true;
 
