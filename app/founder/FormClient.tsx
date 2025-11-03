@@ -2,11 +2,17 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
+import { createClient } from '@/app/lib/supabaseClient';
 
 type Analysis = {
   score: number;
   rank: 'A' | 'B' | 'C' | 'D';
-  subscores: { financeFit: number; viability: number; goToMarket: number; risk: number };
+  subscores: {
+    financeFit: number;
+    viability: number;
+    goToMarket: number;
+    risk: number;
+  };
   kpi: {
     grossProfit: number;
     grossMargin: number;
@@ -33,13 +39,11 @@ export default function FormClient() {
   const [msg, setMsg] = React.useState<string | null>(null);
 
   const [form, setForm] = React.useState({
-    // 基本
     title: '',
     company_name: '',
     industry: '',
     phase: '',
     summary: '',
-    // PL・KPI
     revenue: '',
     cogs: '',
     ad_cost: '',
@@ -53,6 +57,7 @@ export default function FormClient() {
   });
 
   const [analysis, setAnalysis] = React.useState<Analysis | null>(null);
+  const latestIdRef = React.useRef<string | null>(null);
 
   const onChange =
     (k: keyof typeof form) =>
@@ -61,7 +66,9 @@ export default function FormClient() {
 
   const n = (v: string) => (v === '' ? 0 : Number(v));
 
-  // ===== AI解析 =====
+  // =======================
+  // AI解析実行
+  // =======================
   async function onAnalyze() {
     setAnalyzing(true);
     setMsg(null);
@@ -86,11 +93,13 @@ export default function FormClient() {
           },
         },
       };
+
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
       });
+
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error?.message ?? `status ${res.status}`);
       setAnalysis(json);
@@ -101,77 +110,91 @@ export default function FormClient() {
     }
   }
 
-  // ===== 公開申請（保存→申請） =====
-  async function requestPublish() {
+  // =======================
+  // 保存（Supabaseに登録）
+  // =======================
+  async function onSave() {
     setSaving(true);
     setMsg(null);
     try {
-      const payload = {
-        title: form.title || null,
-        company_name: form.company_name || null,
-        industry: form.industry || null,
-        phase: form.phase || null,
-        revenue: n(form.revenue) || null,
-        summary: form.summary || null,
-        cogs: n(form.cogs) || null,
-        fixed_cost: n(form.fixed_cost) || null,
-        ad_cost: n(form.ad_cost) || null,
-        cv: n(form.cv) || null,
-        cvr: n(form.cvr) || null,
-        price: n(form.price) || null,
-        cpa: n(form.cpa) || null,
-        ltv: n(form.ltv) || null,
-        churn: n(form.churn) || null,
-        ai_score: analysis?.score ?? null,
-        tags: null,
-      };
-
-      // 1) 保存
-      const saveRes = await fetch('/api/fpl', {
+      const res = await fetch('/api/fpl', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          title: form.title || null,
+          company_name: form.company_name || null,
+          industry: form.industry || null,
+          phase: form.phase || null,
+          revenue: n(form.revenue) || null,
+          summary: form.summary || null,
+          cogs: n(form.cogs) || null,
+          fixed_cost: n(form.fixed_cost) || null,
+          ad_cost: n(form.ad_cost) || null,
+          cv: n(form.cv) || null,
+          cvr: n(form.cvr) || null,
+          price: n(form.price) || null,
+          cpa: n(form.cpa) || null,
+          ltv: n(form.ltv) || null,
+          churn: n(form.churn) || null,
+          ai_score: analysis?.score ?? null,
+          tags: null,
+        }),
       });
-      const saveJson = await saveRes.json();
-      if (!saveRes.ok) throw new Error(saveJson?.error?.message ?? `save status ${saveRes.status}`);
-      const id: string = saveJson?.data?.id;
-      if (!id) throw new Error('ID が取得できませんでした');
 
-      // 2) 公開申請
-      const pubRes = await fetch(`/api/fpl/${id}/publish`, { method: 'POST' });
-      const pubJson = await pubRes.json();
-      if (!pubRes.ok) throw new Error(pubJson?.error ?? `publish status ${pubRes.status}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error?.message ?? `status ${res.status}`);
 
-      setMsg('公開申請を受け付けました（審査中に移行）。');
-      // 必要ならプレビューへ遷移
-      // router.push(`/investors/${id}`);
+      latestIdRef.current = json?.data?.id;
+      setMsg('保存しました');
     } catch (e: any) {
-      setMsg(`公開申請エラー: ${e?.message ?? String(e)}`);
+      setMsg(`保存エラー: ${e?.message ?? String(e)}`);
     } finally {
       setSaving(false);
     }
   }
 
+  // =======================
+  // 公開申請（publishボタン）
+  // =======================
+  async function requestPublish() {
+    try {
+      setSaving(true);
+      setMsg(null);
+      const id = latestIdRef.current;
+      if (!id) throw new Error('保存後に公開申請してください。');
+
+      const res = await fetch(`/api/fpl/${id}/publish`, { method: 'POST' });
+      const json = await res.json();
+
+      if (!res.ok) throw new Error(json?.error?.message ?? `status ${res.status}`);
+      setMsg(json.message ?? '公開申請を受け付けました（審査中に移行）');
+    } catch (e: any) {
+      setMsg(`申請エラー: ${e?.message ?? String(e)}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // =======================
+  // UI描画
+  // =======================
   return (
     <div className="space-y-6">
-      {/* 上段：左右カラム */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* 左：事業の基本情報 */}
+        {/* 左カラム：基本情報 */}
         <section className="rounded-2xl border p-5 space-y-4">
           <h2 className="font-semibold mb-1">事業の基本情報</h2>
 
-          {/* 会社名 */}
           <label className="text-sm block">
             <span className="block text-gray-600 mb-1">会社名（company_name）</span>
             <input
               className="w-full rounded border px-3 py-2"
               value={form.company_name}
               onChange={onChange('company_name')}
-              placeholder="例）株式会社〇〇"
+              placeholder="例）株式会社サンプル"
             />
           </label>
 
-          {/* 30字要約 */}
           <label className="text-sm block">
             <span className="block text-gray-600 mb-1">30字要約（title）</span>
             <input
@@ -209,7 +232,7 @@ export default function FormClient() {
           </div>
         </section>
 
-        {/* 右：PL・KPI（簡易） */}
+        {/* 右カラム：PL・KPI */}
         <section className="rounded-2xl border p-5 space-y-4">
           <h2 className="font-semibold mb-1">PL・KPI（簡易）</h2>
 
@@ -237,7 +260,7 @@ export default function FormClient() {
         </section>
       </div>
 
-      {/* 下段：AI結果カード群 */}
+      {/* AI解析結果 */}
       {analysis && (
         <>
           <section className="rounded-2xl border p-5">
@@ -284,8 +307,17 @@ export default function FormClient() {
             </ul>
           </section>
 
-          {/* ボタン：公開申請のみ（投資家プレビューは撤去） */}
+          {/* ボタン類 */}
           <section className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={saving}
+              className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-60"
+            >
+              {saving ? '保存中…' : '保存'}
+            </button>
+
             <button
               type="button"
               onClick={requestPublish}
@@ -303,6 +335,10 @@ export default function FormClient() {
   );
 }
 
+// =======================
+// 小コンポーネント群
+// =======================
+
 function Num({
   label,
   val,
@@ -315,7 +351,13 @@ function Num({
   return (
     <label className="text-sm">
       <span className="block text-gray-600 mb-1">{label}</span>
-      <input type="number" inputMode="numeric" className="w-full rounded border px-3 py-2" value={val} onChange={onChange} />
+      <input
+        type="number"
+        inputMode="numeric"
+        className="w-full rounded border px-3 py-2"
+        value={val}
+        onChange={onChange}
+      />
     </label>
   );
 }
@@ -328,7 +370,10 @@ function Bar({ label, value }: { label: string; value: number }) {
         <span>{value}</span>
       </div>
       <div className="h-2 rounded bg-gray-200">
-        <div className="h-2 rounded bg-gray-800" style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
+        <div
+          className="h-2 rounded bg-gray-800"
+          style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
+        />
       </div>
     </div>
   );
@@ -348,7 +393,11 @@ function CardList({ title, items }: { title: string; items: string[] }) {
     <section className="rounded-2xl border p-5">
       <h3 className="font-semibold mb-2">{title}</h3>
       {items?.length ? (
-        <ul className="list-disc pl-6 text-sm space-y-1">{items.map((t, i) => <li key={i}>{t}</li>)}</ul>
+        <ul className="list-disc pl-6 text-sm space-y-1">
+          {items.map((t, i) => (
+            <li key={i}>{t}</li>
+          ))}
+        </ul>
       ) : (
         <p className="text-sm text-gray-500">—</p>
       )}
